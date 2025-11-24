@@ -1,70 +1,139 @@
 <!DOCTYPE HTML>
 <html>
-	<head>
-		<title>Tourist Tracker - Sender</title>
-	</head>
-	<body>
-		<h1>Location Sender</h1>
-		<p> Your ID: <strong id = "tourist_id"> TOURIST_001</strong></p>
-		<p id = "status">Waiting for location.....</p>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Tourist Location Sender</title>
+    <style>
+        .container {
+            max-width: 400px;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
 
-		<script>
-			// NOTE: Ensure your Replit URL is correct and accessible.
-			const API_ENDPOINT = "https://a7d64c80-f620-40d1-be03-4ed7af8374ae-00-6mjphf1eg2nq.kirk.repl.co/update";
-			// Use .trim() to clean up whitespace from the inner text
-			const touristId = document.getElementById('tourist_id').textContent.trim(); 
-			const statusElement = document.getElementById('status');
+    <div class="container bg-white p-6 rounded-lg shadow-xl w-full">
+        <h1 class="text-2xl font-bold mb-4 text-center text-indigo-700">Live Location Sender</h1>
 
-			function sendLocation(position){
-				const data = {
-					tourist_id: touristId,
-					latitude: position.coords.latitude,
-					longitude: position.coords.longitude,
-				};
-				
-				fetch(API_ENDPOINT , {
-					method: 'POST',
-					headers: {
-						'Content-Type':'application/json',
-					}, // <-- FIX 1: Missing comma here
-					body: JSON.stringify(data)
-				})
-				.then(response => response.json())
-				.then(result => {
-					// FIX 2: Correct template literal syntax (use backticks)
-					statusElement.textContent = `Location sent successfully at ${new Date().toLocaleTimeString()}. Lat: ${data.latitude.toFixed(4)}`;
-				}) // <-- FIX 3: Closing parentheses/semicolon for the chain
-				.catch(error => {
-					statusElement.textContent = 'Error Sending Location!';
-					console.error('Error:',error);
-				}); // <-- FIX 4: The .catch must be part of the fetch chain, not inside the .then
-			} // <-- FIX 5: Closing bracket for the sendLocation function
+        <div id="status" class="mb-4 p-3 bg-blue-100 border border-blue-300 rounded text-blue-700 font-medium text-sm text-center">
+            Getting ready...
+        </div>
 
-			function startTracking(){
-				if("geolocation" in navigator){
-					// Initial location fetch
-					navigator.geolocation.getCurrentPosition(sendLocation, (err) => {
-						console.error("Geolocation Error:",err);
-						statusElement.textContent = 'Geolocation error. Check permissions'; // Corrected text
-					});
+        <div class="mb-6 p-4 bg-gray-50 border border-gray-200 rounded">
+            <p class="text-sm font-semibold text-gray-600 mb-1">Your Unique Tourist ID:</p>
+            <p id="tourist-id" class="text-lg font-mono break-all text-gray-800 bg-gray-100 p-2 rounded"></p>
+        </div>
 
-					// Repeated location fetch
-					setInterval(() => {
-						// FIX 6: The callback for setInterval just needs to call getCurrentPosition
-						navigator.geolocation.getCurrentPosition(sendLocation, (err) => { 
-							console.error("Geolocation Error: ",err);
-						});
-					},15000);
-				} else {
-					statusElement.textContent = 'Geolocation is not supported by this browser'
-				}
-			}
-			
-			// Start tracking when the page finishes loading
-			window.onload = startTracking;
+        <button id="start-tracking-button" 
+                class="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg shadow-md hover:bg-indigo-700 transition duration-150 ease-in-out cursor-pointer disabled:opacity-50"
+                disabled>
+            Start Sending Location
+        </button>
 
-		</script>
-	</body>
+        <p id="location-display" class="mt-4 text-xs text-gray-500 text-center">
+            Current Location: --
+        </p>
+    </div>
+
+    <script>
+        const API_URL = "YOUR_REPLIT_API_URL"; // <<< REMEMBER TO REPLACE THIS WITH YOUR ACTUAL REPLIT URL
+        const STATUS_READY = "Ready. Click 'Start Sending Location' to begin.";
+        const STATUS_TRACKING = "Tracking location in real-time...";
+        const STATUS_ERROR = "Error getting location or connecting to server.";
+        
+        let touristId = '';
+        let trackingInterval = null;
+
+        // --- 1. ID GENERATION AND INITIALIZATION ---
+        function initializeTouristId() {
+            // Check if an ID already exists in this browser's storage
+            const existingId = localStorage.getItem('touristId');
+            
+            if (existingId) {
+                touristId = existingId;
+            } else {
+                // If not, generate a new unique ID and save it
+                // This ensures the device keeps the same ID across sessions
+                touristId = crypto.randomUUID(); 
+                localStorage.setItem('touristId', touristId);
+            }
+            
+            document.getElementById('tourist-id').textContent = touristId;
+            document.getElementById('status').textContent = STATUS_READY;
+            document.getElementById('start-tracking-button').disabled = false;
+        }
+
+        // --- 2. LOCATION SENDING LOGIC ---
+        async function sendLocation(position) {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            const timestamp = new Date().toLocaleTimeString();
+
+            document.getElementById('location-display').textContent = 
+                `Last Sent at ${timestamp} | Lat: ${lat.toFixed(6)}, Lon: ${lon.toFixed(6)}`;
+
+            const payload = {
+                tourist_id: touristId, // <-- NOW USES THE UNIQUE ID
+                latitude: lat,
+                longitude: lon
+            };
+
+            try {
+                const response = await fetch(`${API_URL}/update`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    console.error('Server error:', response.status);
+                }
+
+            } catch (error) {
+                console.error('Network or CORS error:', error);
+                document.getElementById('status').textContent = STATUS_ERROR;
+            }
+        }
+
+        // --- 3. GEOLOCATION AND TRACKING SETUP ---
+        function startTracking() {
+            document.getElementById('status').textContent = STATUS_TRACKING;
+            document.getElementById('start-tracking-button').disabled = true;
+
+            if (!navigator.geolocation) {
+                document.getElementById('status').textContent = STATUS_ERROR;
+                return;
+            }
+
+            // Get initial location immediately
+            navigator.geolocation.getCurrentPosition(sendLocation, handleError);
+
+            // Set up interval to update location every 10 seconds (10000 milliseconds)
+            trackingInterval = setInterval(() => {
+                navigator.geolocation.getCurrentPosition(sendLocation, handleError);
+            }, 10000); 
+        }
+
+        function handleError(error) {
+            console.error('Geolocation Error:', error);
+            document.getElementById('status').textContent = 
+                `${STATUS_ERROR} (Code: ${error.code})`;
+            
+            if (trackingInterval) {
+                clearInterval(trackingInterval);
+            }
+        }
+
+        // --- 4. EVENT LISTENERS ---
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeTouristId();
+
+            document.getElementById('start-tracking-button').addEventListener('click', startTracking);
+        });
+
+    </script>
+
+</body>
 </html>
-
-
