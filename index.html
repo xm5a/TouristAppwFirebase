@@ -9,11 +9,11 @@
 <div id = "map" style = "width: 100% height: 100%"></div>
 
 <script type="module">
-	let userLat = position.coords.latitude;
-	let userLon = position.coords.longitude;
+	//let userLat = position.coords.latitude;
+	//let userLon = position.coords.longitude;
  const map = new maplibregl.Map({
     style: 'https://tiles.openfreemap.org/styles/liberty',
-    center: [userLon,userLat],
+    center: [13.388,57.517],
     zoom: 9.5,
     container: 'map',
   })
@@ -85,3 +85,4 @@
 </body>
 
 </html>
+
