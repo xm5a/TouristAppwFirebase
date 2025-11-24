@@ -5,14 +5,14 @@
 	</head>
 	<body>
 		<h1>Location Sender</h1>
-		<p> Your ID: <strong id = "tourist-id"> TOURIST_001</strong></p>
+		<p> Your ID: <strong id = "tourist_id"> TOURIST_001</strong></p>
 		<p id = "status">Waiting for location.....</p>
 
 		<script>
 			// NOTE: Ensure your Replit URL is correct and accessible.
 			const API_ENDPOINT = "https://a7d64c80-f620-40d1-be03-4ed7af8374ae-00-6mjphf1eg2nq.kirk.repl.co/update";
 			// Use .trim() to clean up whitespace from the inner text
-			const touristId = document.getElementById('tourist-id').textContent.trim(); 
+			const touristId = document.getElementById('tourist_id').textContent.trim(); 
 			const statusElement = document.getElementById('status');
 
 			function sendLocation(position){
@@ -66,4 +66,5 @@
 		</script>
 	</body>
 </html>
+
 
