@@ -1,0 +1,54 @@
+<!DOCTYPE HTML>
+<html>
+	<head>
+		<title>Tourist Tracker - Sender</title>
+	</head>
+	<body>
+		<h1>Location Sender</h1>
+		<p> Your ID: <strong id = "tourist-id"> TOURIST_001</strong></p>
+		<p id = "status">Waiting for location.....</p>
+
+		<script>
+			const API_ENDPOINT = "http://127.0.0.1:5000/update-location";
+			const touristId = document.getElementById('tourist-id').textContent;
+			const statusElement = document.getElementById('status');
+
+			function sendLocation(position){
+				const data = {
+					tourist_id: touristId,
+					latitude: position.coords.latitude,
+					longitude: position.coords.longitude,
+				};
+				
+				fetch(API_ENDPOINT , {
+					method: 'POST',
+					headers: {
+						'Content-Type':'application/json',
+					}
+					body: JSON.stringify(data)
+				}).then(response => response.json()).then(result => {
+					statusElement.textContent = 'Location sent successfully at ${new Date().toLocaleTimeString()}. Lat: ${data.latitude.toFixed(4)}';
+					.catch(error => {
+						statusElement.textContent = 'Error Sending Location!';
+						console.error('Error:',error);
+					});
+				}
+				function startTracking(){
+					if("geolocation" in navigator){
+						navigator.geolocation.getCurrentPosition(sendLocation, (err) => {
+							console.error("Geolocation Error:",err);
+							statusElement.textContent = 'Geolocation error. Check permission'});
+						setInterval(() => {
+							navigator.geolocation.getCurrentPosition(sendLocation, (err){ => console.error("Geolocation Error: ",err);
+						});
+					},15000);
+					} else {
+						statusElement.textContent = 'Geolocation is not supported by this browser'
+					}
+				}
+					window.onload = startTracking;
+
+		</script>
+	</body>
+</html>
+
