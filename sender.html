@@ -9,8 +9,10 @@
 		<p id = "status">Waiting for location.....</p>
 
 		<script>
+			// NOTE: Ensure your Replit URL is correct and accessible.
 			const API_ENDPOINT = "https://a7d64c80-f620-40d1-be03-4ed7af8374ae-00-6mjphf1eg2nq.kirk.repl.co/updateloc";
-			const touristId = document.getElementById('tourist-id').textContent;
+			// Use .trim() to clean up whitespace from the inner text
+			const touristId = document.getElementById('tourist-id').textContent.trim(); 
 			const statusElement = document.getElementById('status');
 
 			function sendLocation(position){
@@ -24,33 +26,43 @@
 					method: 'POST',
 					headers: {
 						'Content-Type':'application/json',
-					}
+					}, // <-- FIX 1: Missing comma here
 					body: JSON.stringify(data)
-				}).then(response => response.json()).then(result => {
-					statusElement.textContent = 'Location sent successfully at ${new Date().toLocaleTimeString()}. Lat: ${data.latitude.toFixed(4)}';
-					.catch(error => {
-						statusElement.textContent = 'Error Sending Location!';
-						console.error('Error:',error);
+				})
+				.then(response => response.json())
+				.then(result => {
+					// FIX 2: Correct template literal syntax (use backticks)
+					statusElement.textContent = `Location sent successfully at ${new Date().toLocaleTimeString()}. Lat: ${data.latitude.toFixed(4)}`;
+				}) // <-- FIX 3: Closing parentheses/semicolon for the chain
+				.catch(error => {
+					statusElement.textContent = 'Error Sending Location!';
+					console.error('Error:',error);
+				}); // <-- FIX 4: The .catch must be part of the fetch chain, not inside the .then
+			} // <-- FIX 5: Closing bracket for the sendLocation function
+
+			function startTracking(){
+				if("geolocation" in navigator){
+					// Initial location fetch
+					navigator.geolocation.getCurrentPosition(sendLocation, (err) => {
+						console.error("Geolocation Error:",err);
+						statusElement.textContent = 'Geolocation error. Check permissions'; // Corrected text
 					});
-				}
-				function startTracking(){
-					if("geolocation" in navigator){
-						navigator.geolocation.getCurrentPosition(sendLocation, (err) => {
-							console.error("Geolocation Error:",err);
-							statusElement.textContent = 'Geolocation error. Check permission'});
-						setInterval(() => {
-							navigator.geolocation.getCurrentPosition(sendLocation, (err){ => console.error("Geolocation Error: ",err);
+
+					// Repeated location fetch
+					setInterval(() => {
+						// FIX 6: The callback for setInterval just needs to call getCurrentPosition
+						navigator.geolocation.getCurrentPosition(sendLocation, (err) => { 
+							console.error("Geolocation Error: ",err);
 						});
 					},15000);
-					} else {
-						statusElement.textContent = 'Geolocation is not supported by this browser'
-					}
+				} else {
+					statusElement.textContent = 'Geolocation is not supported by this browser'
 				}
-					window.onload = startTracking;
+			}
+			
+			// Start tracking when the page finishes loading
+			window.onload = startTracking;
 
 		</script>
 	</body>
 </html>
-
-
-
