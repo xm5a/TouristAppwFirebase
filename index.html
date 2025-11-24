@@ -78,6 +78,11 @@
             
             touristMarkers[touristId] = marker;
             console.log(`New marker added for ${touristId} at [${lon}, ${lat}]`);
+            map.flyTo({
+            center: coordinates, // coordinates is [lon, lat]
+            zoom: 12,           // Optional: Zoom in slightly when clicked
+            speed: 1.5          // Optional: Speed of the animation
+        });
         }
     }
     
@@ -124,3 +129,4 @@
 </body>
 
 </html>
+
