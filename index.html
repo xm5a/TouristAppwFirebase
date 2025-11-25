@@ -151,7 +151,12 @@
 	});
 	}
 	
-	signInButton.addEventListener('click',handleSignIn);
+	document.getElementByClass("w-full").addEventListener('submit',function(event){
+
+		event.preventDefault();
+		handleSignIn();
+	
+	});
 	
         // JavaScript for password visibility toggle
         const togglePassword = document.querySelector('#togglePassword');
