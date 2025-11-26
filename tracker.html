@@ -179,7 +179,7 @@ function removeMapMarker(touristId) {
 }
 
 // --- REAL-TIME DATA LISTENER ---
-const touristCollection = collection(db, TOURIST_COLLECTION_PATH);
+//const touristCollection = collection(db, TOURIST_COLLECTION_PATH);
     
 onSnapshot(touristCollection, (snapshot) => {
     snapshot.docChanges().forEach((change) => {
@@ -201,38 +201,12 @@ onSnapshot(touristCollection, (snapshot) => {
         }
     });
 });
-
-    // --- REAL-TIME DATA LISTENER ---
-    const touristCollection = collection(db, TOURIST_COLLECTION_PATH);
-    
-    onSnapshot(touristCollection, (snapshot) => {
-        snapshot.docChanges().forEach((change) => {
-            const touristData = change.doc.data();
-            const touristId = change.doc.id;
-            const lat = touristData.latitude;
-            const lon = touristData.longitude; // This is the variable name used below!
-            
-            // Check for valid data before proceeding
-            if (typeof lat !== 'number' || typeof lon !== 'number') {
-                console.error(`Invalid coordinates for ${touristId}: Lat=${lat}, Lon=${lon}`);
-                return; 
-            }
-
-            if (change.type === "added" || change.type === "modified") {
-                // CRITICAL FIX: The function call was using 'lng' which was undefined.
-                // We use the correctly defined 'lon' variable here.
-                updateMapMarker(touristId, lat, lon);
-            } else if (change.type === "removed") {
-                removeMapMarker(touristId);
-            }
-        });
-    });
-    
 </script>
 
 </body>
 
 </html>
+
 
 
 
