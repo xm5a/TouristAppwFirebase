@@ -97,8 +97,27 @@
     });
 
 
-	map.addLayer(createGeoCircle(geofenceCenter,geofence.radius));
+	//map.addLayer(createGeoCircle(geofenceCenter,geofence.radius));
 
+map.on('load', () => {
+	map.addSource('MyHouse', {
+		'type' : 'geoJson',
+		'data' : createGeoCircle(geofenceCenter.lat, geofenceCenter.lng, 50);,
+	}
+				  );
+
+	map.addLayer({
+		'id': 'MyHouse',
+		'type': 'fill',
+		'source': 'MyHouse',
+		'layout': {},
+		'paint': {
+			'fill-color': '#088',
+			'fill-opacity':'0.8',
+		}
+	});
+});		
+	
     let distance = null;
 
     // --- FIREBASE INITIALIZATION ---
@@ -194,6 +213,7 @@
 </body>
 
 </html>
+
 
 
 
