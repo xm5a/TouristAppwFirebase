@@ -118,7 +118,7 @@ map.on('load', () => {
 });
     
 let distance = null;
-
+let GeoFncPosStat = null;
 // --- FIREBASE INITIALIZATION ---
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app); 
@@ -145,7 +145,7 @@ function updateMapMarker(touristId, lat, lon) {
         // Create a new marker and Popup
         const marker = new maplibregl.Marker()
             .setLngLat(coordinates)
-            .setPopup(new maplibregl.Popup({ offset: 25 }).setText(`Tourist ID: ${touristId}`))
+            .setPopup(new maplibregl.Popup({ offset: 25 }).setText(`Tourist ID: ${touristId}, Geofence Status: ${GeoFncPosStat}`))
             .addTo(map);
             
         touristMarkers[touristId] = marker;
@@ -161,8 +161,10 @@ function updateMapMarker(touristId, lat, lon) {
     distance = calculateDistance(lat, geofence.lat, lon, geofence.lng); 
     if (distance <= geofence.radius) {
         console.log(`Tourist ${touristId} is INSIDE the geofence (Distance: ${distance.toFixed(2)}m)`);
+        GeoFncPosStat = "Inside GeoFence";
     } else {
         console.log(`Tourist ${touristId} is OUTSIDE the geofence (Distance: ${distance.toFixed(2)}m)`);
+        GeoFncPosStat = "Outside Geofence";
     }
 }
     
@@ -206,6 +208,7 @@ onSnapshot(touristCollection, (snapshot) => {
 </body>
 
 </html>
+
 
 
 
