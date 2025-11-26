@@ -113,6 +113,7 @@
      * @param {number} lat - Latitude.
      * @param {number} lon - Longitude.
      */
+	createGeoCircle(geofenceCenter, 50); 
     function updateMapMarker(touristId, lat, lon) { // Changed 'lng' parameter to 'lon' for clarity
         // MapLibre expects [longitude, latitude]
         const coordinates = [lon, lat]; 
@@ -191,6 +192,7 @@
 </body>
 
 </html>
+
 
 
 
