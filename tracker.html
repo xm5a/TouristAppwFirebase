@@ -50,7 +50,24 @@
 				return R * c;
 			}
 
-    function createGeoCircle(center, radius, points = 64){
+    		const geofence = {
+				lat: 19.207385364043382,
+				lng: 72.98311549254477,
+				radius: 50
+			};
+			const geofenceCenter = {
+				lat: geofence.lat,
+				lng: geofence.lng,
+			};
+    
+    const map = new maplibregl.Map({
+        style: 'https://tiles.openfreemap.org/styles/liberty',
+        center: [13.388, 57.517],
+        zoom: 9.5,
+        container: 'map',
+    });
+
+	function createGeoCircle(center, radius, points = 64){
 				const coords = [];
 				const earthRad = 6371e3;
 				const lat = center.lat * Math.PI / 180;
@@ -78,23 +95,7 @@
 					}
 				};
 			}
-
-			const geofence = {
-				lat: 19.207385364043382,
-				lng: 72.98311549254477,
-				radius: 50
-			};
-			const geofenceCenter = {
-				lat: geofence.lat,
-				lng: geofence.lng,
-			};
-    
-    const map = new maplibregl.Map({
-        style: 'https://tiles.openfreemap.org/styles/liberty',
-        center: [13.388, 57.517],
-        zoom: 9.5,
-        container: 'map',
-    });
+	map.addLayer(createGeoFence);
 
     let distance = null;
 
@@ -113,7 +114,6 @@
      * @param {number} lat - Latitude.
      * @param {number} lon - Longitude.
      */
-	createGeoCircle(geofenceCenter, 50); 
     function updateMapMarker(touristId, lat, lon) { // Changed 'lng' parameter to 'lon' for clarity
         // MapLibre expects [longitude, latitude]
         const coordinates = [lon, lat]; 
@@ -192,6 +192,7 @@
 </body>
 
 </html>
+
 
 
 
