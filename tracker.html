@@ -137,7 +137,7 @@
         });
         }
 
-        distance = calculateDistance(lat,geofence.lat, lon, geofence.lng);
+        distance = calculateDistance(coordinates.lat,geofence.lat, coordinates.lon, geofence.lng);
 					if(distance <= geofence.radius){
 						console.log("Inside");
 						//document.getElementById("status").innerText = "Inside";
@@ -191,5 +191,6 @@
 </body>
 
 </html>
+
 
 
