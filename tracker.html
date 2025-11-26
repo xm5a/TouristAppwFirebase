@@ -20,167 +20,187 @@
 
 <!-- FIX: Corrected style attribute formatting -->
 <div id="map"></div>
+<script type = "module">
+// --- FIREBASE IMPORTS ---
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
+import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-analytics.js";
 
-<script type="module">
-    // --- FIREBASE IMPORTS ---
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
-    import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
-    import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-analytics.js";
+// --- FIREBASE CONFIGURATION (Using the config from your file) ---
+const firebaseConfig = {
+    apiKey: "AIzaSyBmvrTANm1-jNwmeaMhpjq9JKTTAofcEWg",
+    authDomain: "tourist-app-test-63310.firebaseapp.com",
+    projectId: "tourist-app-test-63310",
+    storageBucket: "tourist-app-test-63310.firebasestorage.app",
+    messagingSenderId: "514944152276",
+    appId: "1:514944152276:web:4f723294cbcaa8f7b10141",
+    measurementId: "G-SFSQ0B034K"
+};
 
-    // --- FIREBASE CONFIGURATION (Using the config from your file) ---
-    const firebaseConfig = {
-        apiKey: "AIzaSyBmvrTANm1-jNwmeaMhpjq9JKTTAofcEWg",
-        authDomain: "tourist-app-test-63310.firebaseapp.com",
-        projectId: "tourist-app-test-63310",
-        storageBucket: "tourist-app-test-63310.firebasestorage.app",
-        messagingSenderId: "514944152276",
-        appId: "1:514944152276:web:4f723294cbcaa8f7b10141",
-        measurementId: "G-SFSQ0B034K"
+// --- MAPLIBRE INITIALIZATION ---
+
+function calculateDistance(lat1, lat2, lon1, lon2) {
+    const R = 6371e3;
+    const toRad = deg => deg * Math.PI / 180;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
+
+function createGeoCircle(center, radius, points = 64) {
+    const coords = [];
+    const earthRad = 6371e3;
+    const lat = center.lat * Math.PI / 180;
+    const lon = center.lng * Math.PI / 180;
+
+    for (let i = 0; i <= points; i++) {
+        const angle = (i * 360 / points) * Math.PI / 180;
+        const dx = radius * Math.cos(angle);
+        const dy = radius * Math.sin(angle);
+
+        const latOff = lat + (dy / earthRad);
+        // CRITICAL FIX: The longitudinal offset calculation was missing division by Math.cos(lat)
+        const lonOff = lon + (dx / (earthRad * Math.cos(lat))); 
+
+        coords.push([
+            lonOff * 180 / Math.PI,
+            latOff * 180 / Math.PI
+        ]);
+    }
+
+    return {
+        type: "Feature",
+        geometry: {
+            type: "Polygon",
+            coordinates: [coords]
+        }
     };
+}
 
-    // --- MAPLIBRE INITIALIZATION ---
-
-    function calculateDistance(lat1,lat2,lon1,lon2){
-				const R = 6371e3;
-				const toRad = deg => deg * Math.PI / 180;
-				const dLat = toRad(lat2-lat1);
-				const dLon = toRad(lon2-lon1);
-				const a = Math.sin(dLat/2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2) ** 2;
-				const c = 2 * Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
-				return R * c;
-			}
-
-		function createGeoCircle(center, radius, points = 64){
-				const coords = [];
-				const earthRad = 6371e3;
-				const lat = center.lat * Math.PI / 180;
-				const lon = center.lng * Math.PI / 180;
-				
-				for (let i = 0; i <= points;  i++){
-					const angle = (i * 360 / points) * Math.PI / 180;
-					const dx = radius * Math.cos(angle);
-					const dy = radius * Math.sin(angle);
-					
-					const latOff = lat + (dy / earthRad);
-					const lonOff = lon + (dx / earthRad * Math.cos(lat));
-					
-					coords.push([
-					lonOff * 180 / Math.PI,
-					latOff * 180 / Math.PI
-				]);
-				}
-				
-				return {
-					type: "Feature",
-					geometry: {
-						type: "Polygon",
-						coordinates: [coords]
-					}
-				};
-			}
-
-    		const geofence = {
-				lat: 19.207385364043382,
-				lng: 72.98311549254477,
-				radius: 50
-			};
-			const geofenceCenter = {
-				lat: geofence.lat,
-				lng: geofence.lng,
-			};
-    
-    const map = new maplibregl.Map({
-        style: 'https://tiles.openfreemap.org/styles/liberty',
-        center: [13.388, 57.517],
-        zoom: 9.5,
-        container: 'map',
-    });
-
-
-	//map.addLayer(createGeoCircle(geofenceCenter,geofence.radius));
+const geofence = {
+    lat: 19.207385364043382,
+    lng: 72.98311549254477,
+    radius: 50 // radius in meters
+};
+const geofenceCenter = {
+    lat: geofence.lat,
+    lng: geofence.lng,
+};
+   
+const map = new maplibregl.Map({
+    style: 'https://tiles.openfreemap.org/styles/liberty',
+    // Setting center to the geofence location for better initial view
+    center: [geofence.lng, geofence.lat], 
+    zoom: 13, // Increased zoom for a closer look
+    container: 'map',
+});
 
 map.on('load', () => {
-	map.addSource('MyHouse', {
-		'type' : 'geoJson',
-		'data' : createGeoCircle(geofenceCenter.lat, geofenceCenter.lng, 50),
-	}
-				  );
+    // FIX 1: The 'type' must be 'geojson' (lowercase)
+    // FIX 2: Pass the geofenceCenter object and geofence.radius to createGeoCircle
+    map.addSource('MyHouse', {
+        'type': 'geojson',
+        'data': createGeoCircle(geofenceCenter, geofence.radius), 
+    });
 
-	map.addLayer({
-		'id': 'MyHouse',
-		'type': 'fill',
-		'source': 'MyHouse',
-		'layout': {},
-		'paint': {
-			'fill-color': '#088',
-			'fill-opacity':'0.8',
-		}
-	});
-});		
-	
-    let distance = null;
-
-    // --- FIREBASE INITIALIZATION ---
-    const app = initializeApp(firebaseConfig);
-    const analytics = getAnalytics(app); // Note: Analytics usually requires specific setup; we'll keep the variable for now.
-    const db = getFirestore(app);
-    let touristMarkers = {};
+    map.addLayer({
+        'id': 'MyHouse',
+        'type': 'fill',
+        'source': 'MyHouse',
+        'layout': {},
+        'paint': {
+            'fill-color': '#088',
+            'fill-opacity': 0.5, // Changed opacity for better visibility
+        }
+    });
+});
     
-    // The path to your collection (Must match the Python backend)
-    const TOURIST_COLLECTION_PATH = "tourists";
+let distance = null;
 
-    /**
-     * Updates or creates a MapLibre marker for a specific tourist.
-     * @param {string} touristId - The ID of the tourist (Firestore document ID).
-     * @param {number} lat - Latitude.
-     * @param {number} lon - Longitude.
-     */
-    function updateMapMarker(touristId, lat, lon) { // Changed 'lng' parameter to 'lon' for clarity
-        // MapLibre expects [longitude, latitude]
-        const coordinates = [lon, lat]; 
-        
-        if (touristId in touristMarkers) {
-            // Update existing marker position
-            touristMarkers[touristId].setLngLat(coordinates);
-        } else {
-            // Create a new marker and Popup
-            // FIX: Use backticks (`) for template literals in Popup text
-            const marker = new maplibregl.Marker()
-                .setLngLat(coordinates)
-                .setPopup(new maplibregl.Popup({ offset: 25 }).setText(`Tourist ID: ${touristId}`))
-                .addTo(map);
+// --- FIREBASE INITIALIZATION ---
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app); 
+const db = getFirestore(app);
+let touristMarkers = {};
+    
+// The path to your collection (Must match the Python backend)
+const TOURIST_COLLECTION_PATH = "tourists";
+
+/**
+ * Updates or creates a MapLibre marker for a specific tourist.
+ * @param {string} touristId - The ID of the tourist (Firestore document ID).
+ * @param {number} lat - Latitude.
+ * @param {number} lon - Longitude.
+ */
+function updateMapMarker(touristId, lat, lon) { 
+    // MapLibre expects [longitude, latitude]
+    const coordinates = [lon, lat]; 
+    
+    if (touristId in touristMarkers) {
+        // Update existing marker position
+        touristMarkers[touristId].setLngLat(coordinates);
+    } else {
+        // Create a new marker and Popup
+        const marker = new maplibregl.Marker()
+            .setLngLat(coordinates)
+            .setPopup(new maplibregl.Popup({ offset: 25 }).setText(`Tourist ID: ${touristId}`))
+            .addTo(map);
             
-            touristMarkers[touristId] = marker;
-            console.log(`New marker added for ${touristId} at [${lon}, ${lat}]`);
-            map.flyTo({
+        touristMarkers[touristId] = marker;
+        console.log(`New marker added for ${touristId} at [${lon}, ${lat}]`);
+        map.flyTo({
             center: coordinates, // coordinates is [lon, lat]
-            zoom: 12,           // Optional: Zoom in slightly when clicked
-            speed: 1.5          // Optional: Speed of the animation
+            zoom: 12,           
+            speed: 1.5          
         });
+    }
+
+    // FIX 3: Corrected the calculateDistance call to use lat/lon variables.
+    distance = calculateDistance(lat, geofence.lat, lon, geofence.lng); 
+    if (distance <= geofence.radius) {
+        console.log(`Tourist ${touristId} is INSIDE the geofence (Distance: ${distance.toFixed(2)}m)`);
+    } else {
+        console.log(`Tourist ${touristId} is OUTSIDE the geofence (Distance: ${distance.toFixed(2)}m)`);
+    }
+}
+    
+/**
+ * Removes a map marker for a specific tourist ID.
+ * @param {string} touristId - The ID of the tourist.
+ */
+function removeMapMarker(touristId) {
+    if (touristId in touristMarkers) {
+        touristMarkers[touristId].remove();
+        delete touristMarkers[touristId];
+        console.log(`Marker removed for ${touristId}`);
+    }
+}
+
+// --- REAL-TIME DATA LISTENER ---
+const touristCollection = collection(db, TOURIST_COLLECTION_PATH);
+    
+onSnapshot(touristCollection, (snapshot) => {
+    snapshot.docChanges().forEach((change) => {
+        const touristData = change.doc.data();
+        const touristId = change.doc.id;
+        const lat = touristData.latitude;
+        const lon = touristData.longitude; // This is the variable name used below!
+            
+        // Check for valid data before proceeding
+        if (typeof lat !== 'number' || typeof lon !== 'number') {
+            console.error(`Invalid coordinates for ${touristId}: Lat=${lat}, Lon=${lon}`);
+            return; 
         }
 
-        distance = calculateDistance(coordinates.lat,geofence.lat, coordinates.lon, geofence.lng);
-					if(distance <= geofence.radius){
-						console.log("Inside");
-						//document.getElementById("status").innerText = "Inside";
-					}
-					else{
-						console.log("Outside");
-						//document.getElementById("status").innerText = "Outside";
-					}
-    }
-    
-    /**
-     * Removes a map marker for a specific tourist ID.
-     * @param {string} touristId - The ID of the tourist.
-     */
-    function removeMapMarker(touristId) {
-        if (touristId in touristMarkers) {
-            touristMarkers[touristId].remove();
-            delete touristMarkers[touristId];
-            console.log(`Marker removed for ${touristId}`);
+        if (change.type === "added" || change.type === "modified") {
+            updateMapMarker(touristId, lat, lon);
+        } else if (change.type === "removed") {
+            removeMapMarker(touristId);
         }
-    }
+    });
+});
 
     // --- REAL-TIME DATA LISTENER ---
     const touristCollection = collection(db, TOURIST_COLLECTION_PATH);
@@ -213,6 +233,7 @@ map.on('load', () => {
 </body>
 
 </html>
+
 
 
 
