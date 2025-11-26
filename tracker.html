@@ -39,12 +39,64 @@
     };
 
     // --- MAPLIBRE INITIALIZATION ---
+
+    function calculateDistance(lat1,lat2,lon1,lon2){
+				const R = 6371e3;
+				const toRad = deg => deg * Math.PI / 180;
+				const dLat = toRad(lat2-lat1);
+				const dLon = toRad(lon2-lon1);
+				const a = Math.sin(dLat/2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2) ** 2;
+				const c = 2 * Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+				return R * c;
+			}
+
+    function createGeoCircle(center, radius, points = 64){
+				const coords = [];
+				const earthRad = 6371e3;
+				const lat = center.lat * Math.PI / 180;
+				const lon = center.lng * Math.PI / 180;
+				
+				for (let i = 0; i <= points;  i++){
+					const angle = (i * 360 / points) * Math.PI / 180;
+					const dx = radius * Math.cos(angle);
+					const dy = radius * Math.sin(angle);
+					
+					const latOff = lat + (dy / earthRad);
+					const lonOff = lon + (dx / earthRad * Math.cos(lat));
+					
+					coords.push([
+					lonOff * 180 / Math.PI,
+					latOff * 180 / Math.PI
+				]);
+				}
+				
+				return {
+					type: "Feature",
+					geometry: {
+						type: "Polygon",
+						coordinates: [coords]
+					}
+				};
+			}
+
+			const geofence = {
+				lat: 19.207385364043382,
+				lng: 72.98311549254477,
+				radius: 50
+			};
+			const geofenceCenter = {
+				lat: geofence.lat,
+				lng: geofence.lng,
+			};
+    
     const map = new maplibregl.Map({
         style: 'https://tiles.openfreemap.org/styles/liberty',
         center: [13.388, 57.517],
         zoom: 9.5,
         container: 'map',
     });
+
+    
 
     // --- FIREBASE INITIALIZATION ---
     const app = initializeApp(firebaseConfig);
@@ -84,6 +136,16 @@
             speed: 1.5          // Optional: Speed of the animation
         });
         }
+
+        distance = calculateDistance(lat,geofence.lat, lon, geofence.lng);
+					if(distance <= geofence.radius){
+						console.log("Inside");
+						//document.getElementById("status").innerText = "Inside";
+					}
+					else{
+						console.log("Outside");
+						//document.getElementById("status").innerText = "Outside";
+					}
     }
     
     /**
@@ -129,4 +191,5 @@
 </body>
 
 </html>
+
 
