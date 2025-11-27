@@ -24,9 +24,8 @@
             <p id="tourist-id" class="text-lg font-mono break-all text-gray-800 bg-gray-100 p-2 rounded"></p>
         </div>
 
-        <button id="start-tracking-button" 
-                class="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg shadow-md hover:bg-indigo-700 transition duration-150 ease-in-out cursor-pointer disabled:opacity-50"
-                disabled>
+        <button id="tracking-button" 
+                class="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg shadow-md hover:bg-indigo-700 transition duration-150 ease-in-out cursor-pointer disabled:opacity-50">
             Start Sending Location
         </button>
 
@@ -36,50 +35,59 @@
     </div>
 
     <script>
-        const API_URL = "https://a7d64c80-f620-40d1-be03-4ed7af8374ae-00-6mjphf1eg2nq.kirk.repl.co/update"; // <<< REMEMBER TO REPLACE THIS WITH YOUR ACTUAL REPLIT URL
+        // Use a dedicated DELETE/STOP endpoint for cleaner backend logic
+        const API_URL_UPDATE = "https://a7d64c80-f620-40d1-be03-4ed7af8374ae-00-6mjphf1eg2nq.kirk.repl.co/update";
+        const API_URL_STOP = "https://a7d64c80-f620-40d1-be03-4ed7af8374ae-00-6mjphf1eg2nq.kirk.repl.co/stop_tracking"; // <<< NEW ENDPOINT FOR STOP SIGNAL
+
         const STATUS_READY = "Ready. Click 'Start Sending Location' to begin.";
-        const STATUS_TRACKING = "Tracking location in real-time...";
+        const STATUS_TRACKING = "Tracking location in real-time (sending every 10s)...";
+        const STATUS_STOPPED = "Tracking stopped. Click Start to resume.";
         const STATUS_ERROR = "Error getting location or connecting to server.";
+        const STATUS_DELETING = "Stopping tracking and signaling backend to delete marker...";
         
         let touristId = '';
-        let trackingInterval = null;
+        let isTracking = false;
+        let watchId = null; // Stores the ID returned by navigator.geolocation.watchPosition
+        
+        const trackingButton = document.getElementById('tracking-button');
+        const statusDisplay = document.getElementById('status');
+        const locationDisplay = document.getElementById('location-display');
 
         // --- 1. ID GENERATION AND INITIALIZATION ---
         function initializeTouristId() {
-            // Check if an ID already exists in this browser's storage
             const existingId = localStorage.getItem('touristId');
             
             if (existingId) {
                 touristId = existingId;
             } else {
-                // If not, generate a new unique ID and save it
-                // This ensures the device keeps the same ID across sessions
                 touristId = crypto.randomUUID(); 
                 localStorage.setItem('touristId', touristId);
             }
             
             document.getElementById('tourist-id').textContent = touristId;
-            document.getElementById('status').textContent = STATUS_READY;
-            document.getElementById('start-tracking-button').disabled = false;
+            statusDisplay.textContent = STATUS_READY;
+            trackingButton.disabled = false;
         }
-
-        // --- 2. LOCATION SENDING LOGIC ---
+        
+        // --- 2. CORE SENDING LOGIC ---
         async function sendLocation(position) {
             const lat = position.coords.latitude;
             const lon = position.coords.longitude;
             const timestamp = new Date().toLocaleTimeString();
 
-            document.getElementById('location-display').textContent = 
+            locationDisplay.textContent = 
                 `Last Sent at ${timestamp} | Lat: ${lat.toFixed(6)}, Lon: ${lon.toFixed(6)}`;
 
             const payload = {
-                tourist_id: touristId, // <-- NOW USES THE UNIQUE ID
+                tourist_id: touristId,
                 latitude: lat,
-                longitude: lon
+                longitude: lon,
+                // Add an explicit action for clarity on the backend
+                action: 'update'
             };
 
             try {
-                const response = await fetch(`${API_URL}`, {
+                const response = await fetch(API_URL_UPDATE, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -89,54 +97,129 @@
 
                 if (!response.ok) {
                     console.error('Server error:', response.status);
+                    // Optionally update status to warn user of connection issues
                 }
 
             } catch (error) {
                 console.error('Network or CORS error:', error);
-                document.getElementById('status').textContent = STATUS_ERROR;
+                statusDisplay.textContent = STATUS_ERROR;
             }
         }
 
-        // --- 3. GEOLOCATION AND TRACKING SETUP ---
-        function startTracking() {
-            document.getElementById('status').textContent = STATUS_TRACKING;
-            document.getElementById('start-tracking-button').disabled = true;
+        // --- 3. EXPLICIT STOP SIGNAL LOGIC (Marker Deletion) ---
+        async function signalStopTracking() {
+            statusDisplay.textContent = STATUS_DELETING;
 
+            const payload = {
+                tourist_id: touristId,
+                // Add an explicit action for clarity on the backend
+                action: 'delete' 
+            };
+
+            try {
+                // Send a DELETE signal to the backend (or POST to the /stop_tracking endpoint)
+                const response = await fetch(API_URL_STOP, {
+                    method: 'POST', // Using POST is safer for cross-origin than DELETE
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    console.error('Stop signal server error:', response.status);
+                    statusDisplay.textContent = "Error signaling stop. Check console.";
+                } else {
+                    statusDisplay.textContent = STATUS_STOPPED;
+                }
+
+            } catch (error) {
+                console.error('Stop signal network error:', error);
+                // Even if signal fails, we stop client-side tracking
+                statusDisplay.textContent = STATUS_STOPPED + " (Signal Failed)";
+            }
+        }
+
+        // --- 4. ERROR HANDLER ---
+        function handleError(error) {
+            console.error('Geolocation Error:', error);
+            statusDisplay.textContent = `${STATUS_ERROR} (Code: ${error.code})`;
+            
+            // Stop tracking if a persistent error occurs
+            if (isTracking) {
+                stopTracking();
+            }
+        }
+        
+        // --- 5. START / STOP HANDLERS ---
+        function startTracking() {
             if (!navigator.geolocation) {
-                document.getElementById('status').textContent = STATUS_ERROR;
+                statusDisplay.textContent = STATUS_ERROR;
                 return;
             }
 
-            // Get initial location immediately
-            navigator.geolocation.getCurrentPosition(sendLocation, handleError);
+            // A. Update UI
+            trackingButton.textContent = 'Stop Tracking';
+            trackingButton.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+            trackingButton.classList.add('bg-red-600', 'hover:bg-red-700');
+            statusDisplay.textContent = STATUS_TRACKING;
+            isTracking = true;
 
-            // Set up interval to update location every 10 seconds (10000 milliseconds)
-            trackingInterval = setInterval(() => {
-                navigator.geolocation.getCurrentPosition(sendLocation, handleError);
-            }, 10000); 
+            // B. Fix: Use watchPosition correctly
+            // watchPosition sends updates whenever the browser detects a change, 
+            // usually every few seconds, which is more efficient than setInterval.
+            watchId = navigator.geolocation.watchPosition(
+                sendLocation, 
+                handleError, 
+                {
+                    enableHighAccuracy: true,
+                    maximumAge: 5000, // Accept 5-second old cache
+                    timeout: 7000     // Wait 7 seconds before timing out
+                }
+            );
         }
 
-        function handleError(error) {
-            console.error('Geolocation Error:', error);
-            document.getElementById('status').textContent = 
-                `${STATUS_ERROR} (Code: ${error.code})`;
-            
-            if (trackingInterval) {
-                clearInterval(trackingInterval);
+        function stopTracking() {
+            if (watchId !== null) {
+                navigator.geolocation.clearWatch(watchId); // Stop the geolocation updates
+                watchId = null;
+            }
+
+            // A. Send signal to backend to remove marker
+            signalStopTracking();
+
+            // B. Update UI
+            trackingButton.textContent = 'Start Sending Location';
+            trackingButton.classList.remove('bg-red-600', 'hover:bg-red-700');
+            trackingButton.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
+            isTracking = false;
+            locationDisplay.textContent = "Current Location: --";
+        }
+
+        function toggleTracking() {
+            if (isTracking) {
+                stopTracking();
+            } else {
+                startTracking();
             }
         }
 
-        // --- 4. EVENT LISTENERS ---
+        // --- 6. INITIALIZATION & EVENT LISTENERS ---
         document.addEventListener('DOMContentLoaded', () => {
             initializeTouristId();
-
-            document.getElementById('start-tracking-button').addEventListener('click', startTracking);
+            
+            // Attach the toggle function to the single button
+            trackingButton.addEventListener('click', toggleTracking);
         });
 
+        // OPTIONAL: Try to send a stop signal if the user closes the tab/app cleanly
+        window.addEventListener('beforeunload', () => {
+             if (isTracking) {
+                 // Note: Fetch requests here are unreliable, but better than nothing
+                 // This is why inactivity detection (Method 1) is still best!
+                 signalStopTracking(); 
+             }
+        });
     </script>
-
 </body>
 </html>
-
-
-
