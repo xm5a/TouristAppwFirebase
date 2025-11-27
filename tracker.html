@@ -141,6 +141,7 @@ function updateMapMarker(touristId, lat, lon) {
     if (touristId in touristMarkers) {
         // Update existing marker position
         touristMarkers[touristId].setLngLat(coordinates);
+        touristMarker[touristId].popup.setText(`Tourist ID: ${touristId}, Geofence Status: ${GeoFncPosStat}`);
     } else {
         // Create a new marker and Popup
         const marker = new maplibregl.Marker()
@@ -208,6 +209,7 @@ onSnapshot(touristCollection, (snapshot) => {
 </body>
 
 </html>
+
 
 
 
