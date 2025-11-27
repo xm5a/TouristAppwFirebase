@@ -18,7 +18,8 @@
 </head>
 <body>
 
-<!-- FIX: Corrected style attribute formatting -->
+// ... (HTML Head and Body remain the same) ...
+
 <div id="map"></div>
 <script type = "module">
 // --- FIREBASE IMPORTS ---
@@ -37,7 +38,7 @@ const firebaseConfig = {
     measurementId: "G-SFSQ0B034K"
 };
 
-// --- MAPLIBRE INITIALIZATION ---
+// --- MAPLIBRE UTILITIES ---
 
 function calculateDistance(lat1, lat2, lon1, lon2) {
     const R = 6371e3;
@@ -61,7 +62,6 @@ function createGeoCircle(center, radius, points = 64) {
         const dy = radius * Math.sin(angle);
 
         const latOff = lat + (dy / earthRad);
-        // CRITICAL FIX: The longitudinal offset calculation was missing division by Math.cos(lat)
         const lonOff = lon + (dx / (earthRad * Math.cos(lat))); 
 
         coords.push([
@@ -79,6 +79,7 @@ function createGeoCircle(center, radius, points = 64) {
     };
 }
 
+// --- GEOFENCE CONFIGURATION ---
 const geofence = {
     lat: 19.207385364043382,
     lng: 72.98311549254477,
@@ -88,18 +89,16 @@ const geofenceCenter = {
     lat: geofence.lat,
     lng: geofence.lng,
 };
-   
+    
+// --- MAPLIBRE INITIALIZATION ---
 const map = new maplibregl.Map({
     style: 'https://tiles.openfreemap.org/styles/liberty',
-    // Setting center to the geofence location for better initial view
     center: [geofence.lng, geofence.lat], 
-    zoom: 13, // Increased zoom for a closer look
+    zoom: 13, 
     container: 'map',
 });
 
 map.on('load', () => {
-    // FIX 1: The 'type' must be 'geojson' (lowercase)
-    // FIX 2: Pass the geofenceCenter object and geofence.radius to createGeoCircle
     map.addSource('MyHouse', {
         'type': 'geojson',
         'data': createGeoCircle(geofenceCenter, geofence.radius), 
@@ -112,60 +111,93 @@ map.on('load', () => {
         'layout': {},
         'paint': {
             'fill-color': '#088',
-            'fill-opacity': 0.5, // Changed opacity for better visibility
+            'fill-opacity': 0.5, 
         }
     });
 });
-    
-let distance = null;
-let GeoFncPosStat = null;
+
 // --- FIREBASE INITIALIZATION ---
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app); 
 const db = getFirestore(app);
-let touristMarkers = {};
+// CRITICAL CHANGE: touristMarkers stores BOTH the Marker and the Popup instance.
+const touristMarkers = {}; 
     
 // The path to your collection (Must match the Python backend)
 const TOURIST_COLLECTION_PATH = "tourists";
 
 /**
- * Updates or creates a MapLibre marker for a specific tourist.
+ * Calculates geofence status and returns the status string.
+ * @param {number} touristLat - Tourist Latitude.
+ * @param {number} touristLon - Tourist Longitude.
+ * @returns {string} The geofence status string.
+ */
+function getGeofenceStatus(touristLat, touristLon) {
+    const distance = calculateDistance(touristLat, geofence.lat, touristLon, geofence.lng); 
+    
+    if (distance <= geofence.radius) {
+        return `Inside GeoFence (${distance.toFixed(2)}m)`;
+    } else {
+        return `Outside Geofence (${distance.toFixed(2)}m)`;
+    }
+}
+
+
+/**
+ * Updates or creates a MapLibre marker and its associated popup for a specific tourist.
  * @param {string} touristId - The ID of the tourist (Firestore document ID).
  * @param {number} lat - Latitude.
  * @param {number} lon - Longitude.
+ * @param {string} status - The status from the backend (ACTIVE, MISSING, etc.).
  */
-function updateMapMarker(touristId, lat, lon) { 
-    // MapLibre expects [longitude, latitude]
+function updateMapMarker(touristId, lat, lon, status) { 
     const coordinates = [lon, lat]; 
     
+    // 1. Calculate the Geofence Status
+    const geoFncPosStat = getGeofenceStatus(lat, lon);
+    
+    // 2. Combine the status for the popup text
+    const popupText = 
+        `Tourist ID: ${touristId}\n` +
+        `Location: ${lat.toFixed(6)}, ${lon.toFixed(6)}\n` +
+        `Geofence Status: ${geoFncPosStat}\n` +
+        `API Status: ${status || 'N/A'}`; // Include API status from the backend
+    
     if (touristId in touristMarkers) {
-        // Update existing marker position
-        touristMarkers[touristId].setLngLat(coordinates);
-        touristMarker[touristId].popup.setText(`Tourist ID: ${touristId}, Geofence Status: ${GeoFncPosStat}`);
+        // --- UPDATE EXISTING MARKER ---
+        
+        // A. Update Marker Position
+        touristMarkers[touristId].marker.setLngLat(coordinates);
+        
+        // B. **CRITICAL FIX: Update the Popup text using the stored popup reference**
+        touristMarkers[touristId].popup.setText(popupText);
+
+        console.log(`Updated marker and popup for ${touristId}`);
+
     } else {
-        // Create a new marker and Popup
-        const marker = new maplibregl.Marker()
+        // --- CREATE NEW MARKER ---
+        
+        // Create the Popup instance first
+        const popup = new maplibregl.Popup({ offset: 25 }).setText(popupText);
+        
+        // Create the Marker instance and attach the popup
+        const marker = new maplibregl.Marker({ color: status === 'MISSING' ? 'red' : 'blue' })
             .setLngLat(coordinates)
-            .setPopup(new maplibregl.Popup({ offset: 25 }).setText(`Tourist ID: ${touristId}, Geofence Status: ${GeoFncPosStat}`))
+            .setPopup(popup) 
             .addTo(map);
             
-        touristMarkers[touristId] = marker;
-        console.log(`New marker added for ${touristId} at [${lon}, ${lat}]`);
+        // 3. Store the Marker AND the Popup reference in the centralized object
+        touristMarkers[touristId] = {
+            marker: marker,
+            popup: popup
+        };
+        
+        console.log(`New marker added for ${touristId}`);
         map.flyTo({
-            center: coordinates, // coordinates is [lon, lat]
-            zoom: 12,           
-            speed: 1.5          
+            center: coordinates, 
+            zoom: 14,             
+            speed: 1.5            
         });
-    }
-
-    // FIX 3: Corrected the calculateDistance call to use lat/lon variables.
-    distance = calculateDistance(lat, geofence.lat, lon, geofence.lng); 
-    if (distance <= geofence.radius) {
-        console.log(`Tourist ${touristId} is INSIDE the geofence (Distance: ${distance.toFixed(2)}m)`);
-        GeoFncPosStat = "Inside GeoFence";
-    } else {
-        console.log(`Tourist ${touristId} is OUTSIDE the geofence (Distance: ${distance.toFixed(2)}m)`);
-        GeoFncPosStat = "Outside Geofence";
     }
 }
     
@@ -175,9 +207,9 @@ function updateMapMarker(touristId, lat, lon) {
  */
 function removeMapMarker(touristId) {
     if (touristId in touristMarkers) {
-        touristMarkers[touristId].remove();
+        touristMarkers[touristId].marker.remove(); // Use the stored marker object
         delete touristMarkers[touristId];
-        console.log(`Marker removed for ${touristId}`);
+        console.log(`Marker and popup removed for ${touristId}`);
     }
 }
 
@@ -189,26 +221,26 @@ onSnapshot(touristCollection, (snapshot) => {
         const touristData = change.doc.data();
         const touristId = change.doc.id;
         const lat = touristData.latitude;
-        const lon = touristData.longitude; // This is the variable name used below!
-            
-        // Check for valid data before proceeding
-        if (typeof lat !== 'number' || typeof lon !== 'number') {
-            console.error(`Invalid coordinates for ${touristId}: Lat=${lat}, Lon=${lon}`);
-            return; 
-        }
+        const lon = touristData.longitude; 
+        const status = touristData.status; // Get the status from the backend
 
         if (change.type === "added" || change.type === "modified") {
-            updateMapMarker(touristId, lat, lon);
+            // Only update if we have valid coordinates
+            if (typeof lat === 'number' && typeof lon === 'number') {
+                updateMapMarker(touristId, lat, lon, status);
+            } else {
+                console.error(`Invalid coordinates for ${touristId}. Skipping update.`);
+            }
         } else if (change.type === "removed") {
             removeMapMarker(touristId);
         }
     });
 });
 </script>
-
 </body>
 
 </html>
+
 
 
 
